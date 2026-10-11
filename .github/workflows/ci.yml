@@ -14,12 +14,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: azure/setup-helm@v4
+      # Helm is preinstalled on GitHub's Ubuntu runners.
+      - run: helm version --short
       - name: Install Kyverno CLI
         run: |
           source versions.env
-          curl -sSL "https://github.com/kyverno/kyverno/releases/download/${KYVERNO_CLI_VERSION}/kyverno-cli_${KYVERNO_CLI_VERSION}_linux_x86_64.tar.gz" | tar xz kyverno
-          sudo mv kyverno /usr/local/bin/
+          curl -sSL "https://github.com/kyverno/kyverno/releases/download/${KYVERNO_CLI_VERSION}/kyverno-cli_${KYVERNO_CLI_VERSION}_linux_x86_64.tar.gz" | tar xz -C /tmp kyverno
+          sudo install -m 0755 /tmp/kyverno /usr/local/bin/kyverno
       - run: make validate
 
   e2e:
@@ -31,12 +32,15 @@ jobs:
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - uses: actions/checkout@v5
-      - uses: azure/setup-helm@v4
+      # Helm is preinstalled on GitHub's Ubuntu runners.
+      - run: helm version --short
       - name: Install kind
         run: |
           source versions.env
-          curl -sSLo kind "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64"
-          chmod +x kind && sudo mv kind /usr/local/bin/
+          # Download outside the checkout: the repo has a kind/ directory.
+          curl -sSLo /tmp/kind "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64"
+          sudo install -m 0755 /tmp/kind /usr/local/bin/kind
+          kind version
       - name: Bootstrap (Argo CD + root app at this exact commit)
         env:
           REPO_URL: ${{ github.server_url }}/${{ github.repository }}.git
