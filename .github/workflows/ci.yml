@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Offline validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: azure/setup-helm@v4
+      - name: Install Kyverno CLI
+        run: |
+          source versions.env
+          curl -sSL "https://github.com/kyverno/kyverno/releases/download/${KYVERNO_CLI_VERSION}/kyverno-cli_${KYVERNO_CLI_VERSION}_linux_x86_64.tar.gz" | tar xz kyverno
+          sudo mv kyverno /usr/local/bin/
+      - run: make validate
+
+  e2e:
+    name: End-to-end on kind
+    needs: validate
+    runs-on: ubuntu-latest
+    # Argo CD pulls this repo from GitHub, so it can test commits that exist here
+    # (pushes and same-repo PRs), not forks.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v5
+      - uses: azure/setup-helm@v4
+      - name: Install kind
+        run: |
+          source versions.env
+          curl -sSLo kind "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64"
+          chmod +x kind && sudo mv kind /usr/local/bin/
+      - name: Bootstrap (Argo CD + root app at this exact commit)
+        env:
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}.git
+          REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+          MONITORING: "false" # keep CI fast; monitoring is covered by validate
+        run: make up
+      - run: MONITORING=false make wait
+      - run: make smoke
+      - name: Debug on failure
+        if: failure()
+        run: |
+          kubectl -n argocd get applications -o wide || true
+          kubectl get pods -A || true
+          kubectl -n argocd logs deploy/argocd-repo-server --tail=100 || true

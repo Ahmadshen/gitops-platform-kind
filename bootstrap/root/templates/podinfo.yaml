@@ -1,0 +1,51 @@
+# One Application per environment. Chart version comes from values (promotion
+# via PR); environment config comes from apps/podinfo/envs/<env>/values.yaml.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: podinfo
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - list:
+        elements:
+          {{- range .Values.podinfo.envs }}
+          - env: {{ .name }}
+            chartVersion: {{ .chartVersion | quote }}
+          {{- end }}
+  template:
+    metadata:
+      name: 'podinfo-{{ "{{" }}.env{{ "}}" }}'
+      labels:
+        env: '{{ "{{" }}.env{{ "}}" }}'
+    spec:
+      project: workloads
+      sources:
+        - repoURL: https://stefanprodan.github.io/podinfo
+          chart: podinfo
+          targetRevision: '{{ "{{" }}.chartVersion{{ "}}" }}'
+          helm:
+            releaseName: podinfo
+            valueFiles:
+              - '$values/apps/podinfo/envs/{{ "{{" }}.env{{ "}}" }}/values.yaml'
+        - repoURL: {{ .Values.repoURL }}
+          targetRevision: {{ .Values.revision }}
+          ref: values
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'podinfo-{{ "{{" }}.env{{ "}}" }}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+        retry:
+          limit: 5
+          backoff:
+            duration: 10s
+            maxDuration: 2m

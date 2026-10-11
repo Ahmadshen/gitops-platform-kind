@@ -1,0 +1,28 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-latest-tag
+  annotations:
+    policies.kyverno.io/title: Disallow the latest tag
+    policies.kyverno.io/category: Platform guardrails
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/description: Images must be pinned to an explicit tag so deployments are reproducible and rollbacks mean something.
+spec:
+  background: true
+  rules:
+    - name: disallow-latest-tag
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      exclude:
+        any:
+          - resources:
+              namespaces: [kube-system, kube-public, kube-node-lease, local-path-storage, argocd, kyverno, monitoring]
+      validate:
+        failureAction: Enforce
+        message: "Images must use an explicit tag, not :latest or no tag."
+        pattern:
+          spec:
+            containers:
+              - image: "*:* & !*:latest"

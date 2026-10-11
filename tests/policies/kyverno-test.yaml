@@ -1,0 +1,60 @@
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: platform-guardrails
+policies:
+  - ../../policies/require-requests-limits.yaml
+  - ../../policies/disallow-latest-tag.yaml
+  - ../../policies/require-run-as-nonroot.yaml
+  - ../../policies/disallow-privilege-escalation.yaml
+resources:
+  - resources/pods.yaml
+results:
+  # A compliant pod passes every policy.
+  - policy: require-requests-limits
+    rule: require-requests-limits
+    resources: [compliant, latest-tag, no-tag, runs-as-root, escalation-allowed]
+    kind: Pod
+    result: pass
+  - policy: disallow-latest-tag
+    rule: disallow-latest-tag
+    resources: [compliant, no-limits, runs-as-root, escalation-allowed]
+    kind: Pod
+    result: pass
+  - policy: require-run-as-nonroot
+    rule: require-run-as-nonroot
+    resources: [compliant, latest-tag, no-tag, no-limits, escalation-allowed]
+    kind: Pod
+    result: pass
+  - policy: disallow-privilege-escalation
+    rule: disallow-privilege-escalation
+    resources: [compliant, latest-tag, no-tag, no-limits, runs-as-root]
+    kind: Pod
+    result: pass
+  # Each violation is caught by exactly the right policy.
+  - policy: disallow-latest-tag
+    rule: disallow-latest-tag
+    resources: [latest-tag, no-tag]
+    kind: Pod
+    result: fail
+  - policy: require-requests-limits
+    rule: require-requests-limits
+    resources: [no-limits]
+    kind: Pod
+    result: fail
+  - policy: require-run-as-nonroot
+    rule: require-run-as-nonroot
+    resources: [runs-as-root]
+    kind: Pod
+    result: fail
+  - policy: disallow-privilege-escalation
+    rule: disallow-privilege-escalation
+    resources: [escalation-allowed]
+    kind: Pod
+    result: fail
+  # System namespaces are excluded.
+  - policy: disallow-latest-tag
+    rule: disallow-latest-tag
+    resources: [system-pod]
+    kind: Pod
+    result: skip

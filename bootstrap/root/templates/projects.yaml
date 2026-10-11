@@ -1,0 +1,25 @@
+# Workloads may only deploy approved sources into their own namespaces.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: workloads
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+spec:
+  description: Application teams
+  sourceRepos:
+    - {{ .Values.repoURL }}
+    - https://stefanprodan.github.io/podinfo
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: "podinfo-*"
+  # The only cluster-scoped resource teams get is their own namespace (CreateNamespace).
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+  namespaceResourceBlacklist:
+    - group: ""
+      kind: ResourceQuota
+    - group: ""
+      kind: LimitRange

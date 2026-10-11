@@ -1,0 +1,33 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-requests-limits
+  annotations:
+    policies.kyverno.io/title: Require resource requests and memory limits
+    policies.kyverno.io/category: Platform guardrails
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/description: Every container must request CPU and memory and set a memory limit, so the scheduler can bin-pack and one pod cannot starve a node.
+spec:
+  background: true
+  rules:
+    - name: require-requests-limits
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      exclude:
+        any:
+          - resources:
+              namespaces: [kube-system, kube-public, kube-node-lease, local-path-storage, argocd, kyverno, monitoring]
+      validate:
+        failureAction: Enforce
+        message: "Containers must set cpu and memory requests and a memory limit."
+        pattern:
+          spec:
+            containers:
+              - resources:
+                  requests:
+                    cpu: "?*"
+                    memory: "?*"
+                  limits:
+                    memory: "?*"

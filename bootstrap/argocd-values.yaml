@@ -1,0 +1,23 @@
+# Argo CD for a local kind cluster: lean, no SSO, plain HTTP behind port-forward.
+configs:
+  params:
+    server.insecure: true
+  cm:
+    # Let app-of-apps sync waves wait for child Applications to become Healthy.
+    resource.customizations.health.argoproj.io_Application: |
+      hs = {}
+      hs.status = "Progressing"
+      hs.message = ""
+      if obj.status ~= nil and obj.status.health ~= nil then
+        hs.status = obj.status.health.status
+        if obj.status.health.message ~= nil then
+          hs.message = obj.status.health.message
+        end
+      end
+      return hs
+    timeout.reconciliation: 60s
+
+dex:
+  enabled: false
+notifications:
+  enabled: false
